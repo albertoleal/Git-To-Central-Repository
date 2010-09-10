@@ -1,0 +1,316 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd"> 
+<html> 
+<head> 
+<TITLE>Create Harvest Commands</TITLE> 
+<!-- 
+Created by:
+	Mauricio Andrade
+	Alberto Alvine  
+Created:  2010-01-04
+Version 1.5.1
+--> 
+ 
+<script> 
+var pathToWorkspace = "YOUR_PROJECT_PATH";
+ 
+/*
+ * Ineficient and simple
+ * Example of use: onKeyPress="return keyRestrict(event,'abcdefghijklmnopqrstuvwxyz')"
+ */
+function keyRestrict(e, validchars) {
+	var key='', keychar='';
+	key = e.keyCode;
+	if (key == null) return true;
+	keychar = String.fromCharCode(key);
+	keychar = keychar.toLowerCase();
+	validchars = validchars.toLowerCase();
+	if (validchars.indexOf(keychar) != -1) {
+		return true;
+	}
+	if ( key==null || key==0 || key==8 || key==9 || key==13 || key==27 ) {
+		return true;
+	}
+	return false;
+}
+ 
+function lTrim( value ) {
+	var re = /\s*((\S+\s*)*)/;
+	return value.replace(re, "$1");
+}
+function rTrim( value ) {
+	var re = /((\s*\S+)*)\s*/;
+	return value.replace(re, "$1");
+}
+function trim(value) {
+	return lTrim(rTrim(value));
+}
+function selectAll(theField) {
+	theField.focus();
+	theField.select();
+	var txt = theField.value;
+	if(window.clipboardData) {
+		window.clipboardData.clearData();
+		window.clipboardData.setData("Text", txt);
+     }
+}
+function writeText(el, txt) {
+	document.getElementById(el).value = txt;
+}
+function appendText(el, txt) {
+	document.getElementById(el).value = document.getElementById(el).value + txt;
+}
+ 
+ 
+/**
+ * step 1
+ * Goes to the APP branch (branch that comes from the blessed repository)
+ * Delete the entire workspace
+ * Checkout workspace from harvest (via hco command)
+ * Restore .gitignore files
+ * Copy .classpath (the one from harvest is broken)
+ * Set all files as writeable
+ * Commit everything on the workspace "downloaded" from harvest
+ */
+function rebase(proj, gitProj) {
+	var txt = "git checkout " + gitProj + " \n"
+	+ "cd " + pathToWorkspace + "; rm -Rf workspace; rm -Rf build; rm -Rf Documents;\n"
+	+ "hco -b YOUR_BROKER -en " + proj + " -st Dev -br -replace ro -eh /cc_store/harvest_credentials -vp \\\\TMW\\\\therapeutic_center -s \"*\" ; tail -n 2 hco.log; \n"
+	+ "git checkout workspace/TMWModel/build/.gitignore workspace/TMWWebApp/WebContent/WEB-INF/.gitignore workspace/TMWWebApp/.gitignore workspace/.gitignore; \n" 
+	+ "cp -f /cygdrive/c/cc_store/.classpath " + pathToWorkspace + "/workspace/TMWWebApp/; \n"
+	+ "attrib /s -R > nul; \n"
+	+ "git add . && git commit -a -m Rebase \n";
+	
+ 
+	
+	writeText("rebase", txt);
+}
+ 
+/**
+ * step 2
+ */
+function createTempGitPackage(proj) {
+	var txt = "git checkout " + proj + " && git checkout -b temp_package \n";
+	writeText("createTempGitPackage", txt);
+}
+ 
+/**
+ * step 3
+ */
+function createHarvestPackage(proj, pack, user) {
+ 
+	var txt = "hcp " + pack + " -b YOUR_BROKER -en " + proj + " -st Dev -at " + user + " -eh /cc_store/harvest_credentials;  tail -n 2 hcp.log; rm hcp.log;";
+	writeText("createHarvestPackage", txt);
+}
+ 
+/**
+ * step 4
+ */
+function checkout(proj, pack, path, file) {
+	var txt = "cd " + pathToWorkspace + "/" + path + "; rm -f "+ file + ";\n" +
+		"hco -b YOUR_BROKER -en " + proj + " -st Dev -pn \"Check Out on Branch\" -eh /cc_store/harvest_credentials -vp /TMW/therapeutic_center/" + path + " -p " + pack + " -cu " + file + "; " +		
+		"tail -n 2 hco.log; rm hco.log; cd /tmw; \n";
+	appendText("checkout", txt);
+}
+ 
+/**
+ * step 5
+ */
+function diffProjects(gitPkg) {
+	var txt = "git status; git diff temp_package "+ gitPkg;
+	appendText("stageArea", txt);
+}
+ 
+/**
+ * step 6
+ */
+function mergeGitPackage(gitPack) {
+	var txt = "git checkout workspace; git merge " + gitPack;
+	writeText("mergeGitPackage", txt);
+}
+ 
+/**
+ * step 7
+ */
+function checkin(proj, pack, path, file, isNew, changeComment) {
+	var pn = isNew ? "\"Check In New Item(s)\"" : "\"Check In\"";
+	var txt = "cd " + pathToWorkspace + "/" + path + "; \n" +
+		"hci " + file + " -b YOUR_BROKER -en " + proj + " -st Dev -pn " + pn + " -eh /cc_store/harvest_credentials -vp /TMW/therapeutic_center/" + path + " -p " + pack + " -de \""+ changeComment +"\" -op as; " +
+		"tail -n 2 hci.log; rm hci.log; cd /tmw\n";
+	appendText("checkin", txt);
+}
+ 
+/**
+ * step 8
+ */
+function deleteGitBranch(gitProj){
+	writeText("deleteGitBranch", "git checkout "+ gitProj +"; git branch -D temp_package");
+}
+ 
+function clearOutput() {
+	writeText("createTempGitPackage", "");
+	writeText("createHarvestPackage", "");
+	writeText("mergeGitPackage", "");
+	writeText("rebase", "");
+	writeText("checkout", "");
+	writeText("checkin", "");
+	writeText("stageArea", "");}
+ 
+ 
+function createCommands() {
+ 
+	if (!validate()) return;
+ 
+	clearOutput();
+ 
+	var pack = document.getElementById("package").value;
+	var proj = document.getElementById("project").value;
+	var gitProj = document.getElementById("gitProject").value;
+	var gitPack = document.getElementById("gitPackage").value;
+	var changeComment = document.getElementById("changeComment").value;
+	var user = document.getElementById("user").value;
+ 
+	// step 1
+	rebase(proj, gitProj);
+	
+	// step 2             
+	createTempGitPackage(gitProj);
+	
+	// step 3     
+	createHarvestPackage(proj, pack, user);
+	
+	// step 4
+	var f = document.getElementById("updatedFiles").value.split("\n");
+	for (var i = 0; i < f.length; i++) {
+		if(trim(f[i]) != '') {
+			var obj = getPathAndFile(f[i]);
+			checkout(proj, pack, obj.path, obj.file);
+			checkin(proj, pack, obj.path, obj.file, false, changeComment);
+		}
+	}
+	
+	//step 5
+	diffProjects(gitPack);
+	
+	// step 6
+	mergeGitPackage(gitPack);
+	
+ 
+	// step 7
+	if (trim(document.getElementById("newFiles").value) != '') {
+		var f = document.getElementById("newFiles").value.split("\n");
+		for (var i = 0; i < f.length; i++) {
+			if(trim(f[i]) != '') {
+				var obj = getPathAndFile(f[i]);
+				checkin(proj, pack, obj.path, obj.file, true, changeComment);
+			}
+		}
+	}
+	
+	// step 8
+	deleteGitBranch(gitProj);
+	
+	// helper function
+	function getPathAndFile(path) {
+		var i = path.lastIndexOf("/");
+		var obj = {};
+		obj.path = trim(path.substring(0, i+1));
+		obj.file = trim(path.substring(i+1, path.length));
+		return obj;
+	}
+}
+ 
+function validate() {
+	var gitPackage = document.getElementById("gitPackage");
+	var updatedFiles = document.getElementById("updatedFiles");
+	var newFiles = document.getElementById("newFiles");
+	var changeComment = document.getElementById("changeComment");
+	
+	if (trim(gitPackage.value) == "") {
+		alert("Enter the git branch/package where your changes are located");
+		gitPackage.focus();
+		return false;
+	}
+	if (trim(updatedFiles.value) == "" && trim(newFiles.value) == "") {
+ 
+		alert("Enter the files you have updated or new Files");
+		updatedFiles.focus();
+		return false;
+ 
+	}
+	if (trim(changeComment.value) == "") {
+		alert("Enter a meanfully comment");
+		changeComment.focus();
+		return false;
+	}
+	
+	return true;
+}
+ 
+function rebaseOnly() {
+ 
+	writeText("rebase", "");
+	var proj = document.getElementById("project").value;
+	var gitProj = document.getElementById("gitProject").value;
+	// step 1
+	rebase(proj, gitProj);
+}
+ 
+</script> 
+</head> 
+ 
+<body style="background-color:rgb(224, 224, 224); font-family:verdana; font-size:12px"> 
+<div style="border: 1px dotted  rgb(0, 51, 204);background-color: rgb(250, 190, 180); padding:5px;"> 
+	<b style="text-transform: uppercase;">Utility to create delivery commands for Harvest</b>	
+</div> 
+<div style="background: rgb(204, 255, 153);border: 1px dotted rgb(0, 51, 204); padding:5px;"> 
+ 
+	<b>Harvest Project:</b> <input type="text" id="project" size="11" value="APP-20100907"/> 
+	<b>Harvest Package:</b> <input type="text" id="package" size="25" value="APP-20100907-"/> 
+	<b>Git Project:</b> <input type="text" id="gitProject" value="APP-20100907_Dev"/> 
+	<b>Git Package:</b> <input type="text" id="gitPackage" size="25" value=""/> 
+	<b>User:</b> <input type="text" id="user" size="5" value=""/> 
+	<button onclick="createCommands();">Create</button><br> 
+ 
+	<div style="padding-top:5px;"> 
+		<b>Updated Files: (without '/' at the beginning)<b/><br> 
+		<textarea id="updatedFiles" cols="151" rows="6"></textarea><br> 
+		
+		<b>New Files:<b/><br> 
+		<textarea id="newFiles" cols="151" rows="4"></textarea><br> 
+		
+		<b>Change Comments:<b/><br> 
+		<input type="text" id="changeComment" value="" size="199" maxlength="100" onKeyPress="return keyRestrict(event,'1234567890abcdefghijklmnopqrstuvwxyz- |<>!@#$%&*()_+=[]{}/\\,.:;\'')"/> 
+	</div> 
+</div> 
+<div style="border: 1px dotted  rgb(0, 51, 204);background-color: rgb(210, 230, 234); padding:5px;"> 
+	<b>1. Rebase</b> <a href="javascript:rebaseOnly()">create rebase commands</a><br> 
+	<textarea id="rebase" cols="151" rows="4" onclick="selectAll(this);"></textarea><br> 
+	
+	<b>2. Create Temp Package on GIT</b><br> 
+	<textarea id="createTempGitPackage" cols="151" rows="1" onclick="selectAll(this);"></textarea><br> 
+	
+	<br><b>3. Create Package on Harvest</b><br> 
+	<textarea id="createHarvestPackage" cols="151" rows="1" onclick="selectAll(this);"></textarea><br> 
+	
+	<b>4. Checkout</b><br> 
+	<textarea id="checkout" cols="151" rows="8" onclick="selectAll(this);"></textarea><br> 
+	
+	<b>5. Check if there are some changes in the stage area</b><br> 
+	<textarea id="stageArea" cols="151" rows="1" onclick="selectAll(this);" readonly="true"></textarea><br> 
+ 
+	<b>6. Merge GIT Package</b><br> 
+	<textarea id="mergeGitPackage" cols="151" rows="1" onclick="selectAll(this);"></textarea><br> 
+	
+	<b>7. Checkin</b><br> 
+	<textarea id="checkin" cols="151" rows="8" onclick="selectAll(this);"></textarea><br> 
+	
+	<b>8. Delete temp branch</b><br> 
+	<textarea id="deleteGitBranch" cols="151" rows="1" onclick="selectAll(this);"></textarea><br> 
+		
+</div> 
+ 
+</body> 
+</html> 
+ 
+ 
+ 
