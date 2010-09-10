@@ -1,0 +1,17 @@
+# Created by:
+	Mauricio Andrade
+	Alberto Leal  <albertonb@gmail.com>
+
+# Description
+	Utility to create delivery commands for Harvest.
+	The idea is to leave it as simple as it must be. 
+	You just need to fill up the form - top part, and hit the button, then the scripts will be generated. There are 8 steps that must be followed to migrate your changes to a central repository. Copy each one and paste it in your terminal (step by step); And, that's all.
+
+# Variables
+	You will see the variables below inside the code. You must replace them to your values.
+	
+	YOUR_PROJECT_PATH - The path where your project is.
+	YOUR_BROKER  	  - The broker your project has been using to access Harvest.
+	PATH_TO_HARVEST_CREDENTIALS	- The path where you got your Harvest credential stored.
+
+# Feel free to fork it and convert the code to others SCM, like: SVN, CVS and so forth..
